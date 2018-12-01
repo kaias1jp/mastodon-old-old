@@ -43,7 +43,8 @@
 #  featured_collection_url :string
 #  fields                  :jsonb
 #  actor_type              :string
-#
+#  cat                     :boolean          default(FALSE), not null
+#  #
 
 class Account < ApplicationRecord
   USERNAME_RE = /[a-z0-9_]+([a-z0-9_\.-]+[a-z0-9_]+)?/i
