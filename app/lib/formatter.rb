@@ -179,7 +179,7 @@ class Formatter
   end
 
   def nyaize(html)
-    html.gsub(/な/, "にゃ").gsub(/ナ/, "ニャ").gsub(/ﾅ/, "ﾆｬ")
+	  html.gsub(/な/, "にゃ").gsub(/ナ/, "ニャ").gsub(/ﾅ/, "ﾆｬ").gsub(/na/, "nya")
   end
 
   def rewrite(text, entities)
