@@ -4,3 +4,32 @@
 .simple_form button {
 	color: $black;
 }
+.admin-wrapper .sidebar ul .simple-navigation-active-leaf a {
+	color: $black;
+}
+.dropdown-menu ul {
+ background-color: #444444;
+ color: $terminal-green;
+}
+.dropdown-menu__item a {
+ background-color: #444444;
+ color: $terminal-green;
+}
+.dropdown-menu__item a:hover { 
+ color: $black;
+}
+.dropdown-menu {
+ background-color: #444444;
+}
+.dropdown-menu__arrow.bottom {
+ border-bottom-color: #444444;
+}
+.privacy-dropdown__option.active .privacy-dropdown__option__content {
+ color: $black;
+}
+.privacy-dropdown__option.active .privacy-dropdown__option__content strong {
+ color: $black;
+}
+.privacy-dropdown__option.active .privacy-dropdown__option__icon {
+ color: $black;
+}
