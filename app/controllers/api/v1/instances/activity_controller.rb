@@ -2,11 +2,13 @@
 
 class Api::V1::Instances::ActivityController < Api::BaseController
   before_action :require_enabled_api!
+  skip_before_action :set_cache_headers
 
   respond_to :json
 
   def show
-    render_cached_json('api:v1:instances:activity:show', expires_in: 1.day) { activity }
+    expires_in 1.day, public: true
+    render_with_cache json: :activity, expires_in: 1.day
   end
 
   private

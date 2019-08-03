@@ -19,6 +19,10 @@ class Formatter
 
     raw_content = status.text
 
+    if options[:inline_poll_options] && status.preloadable_poll
+      raw_content = raw_content + "\n\n" + status.preloadable_poll.options.map { |title| "[ ] #{title}" }.join("\n")
+    end
+
     return '' if raw_content.blank?
 
     unless status.local?
@@ -65,6 +69,12 @@ class Formatter
 
   def format_spoiler(status, **options)
     html = encode(status.spoiler_text)
+    html = encode_custom_emojis(html, status.emojis, options[:autoplay])
+    html.html_safe # rubocop:disable Rails/OutputSafety
+  end
+
+  def format_poll_option(status, option, **options)
+    html = encode(option.title)
     html = encode_custom_emojis(html, status.emojis, options[:autoplay])
     html.html_safe # rubocop:disable Rails/OutputSafety
   end
@@ -129,11 +139,7 @@ class Formatter
   def encode_custom_emojis(html, emojis, animate = false)
     return html if emojis.empty?
 
-    emoji_map = if animate
-                  emojis.each_with_object({}) { |e, h| h[e.shortcode] = full_asset_url(e.image.url) }
-                else
-                  emojis.each_with_object({}) { |e, h| h[e.shortcode] = full_asset_url(e.image.url(:static)) }
-                end
+    emoji_map = emojis.each_with_object({}) { |e, h| h[e.shortcode] = [full_asset_url(e.image.url), full_asset_url(e.image.url(:static))] }
 
     i                     = -1
     tag_open_index        = nil
@@ -149,7 +155,14 @@ class Formatter
         emoji     = emoji_map[shortcode]
 
         if emoji
-          replacement = "<img draggable=\"false\" class=\"emojione\" alt=\":#{encode(shortcode)}:\" title=\":#{encode(shortcode)}:\" src=\"#{encode(emoji)}\" />"
+          original_url, static_url = emoji
+          replacement = begin
+            if animate
+              "<img draggable=\"false\" class=\"emojione\" alt=\":#{encode(shortcode)}:\" title=\":#{encode(shortcode)}:\" src=\"#{encode(original_url)}\" />"
+            else
+              "<img draggable=\"false\" class=\"emojione custom-emoji\" alt=\":#{encode(shortcode)}:\" title=\":#{encode(shortcode)}:\" src=\"#{encode(static_url)}\" data-original=\"#{original_url}\" data-static=\"#{static_url}\" />"
+            end
+          end
           before_html = shortname_start_index.positive? ? html[0..shortname_start_index - 1] : ''
           html        = before_html + replacement + html[i + 1..-1]
           i          += replacement.size - (shortcode.size + 2) - 1
@@ -183,7 +196,7 @@ class Formatter
   end
 
   def rewrite(text, entities)
-    chars = text.to_s.to_char_a
+    text = text.to_s
 
     # Sort by start index
     entities = entities.sort_by do |entity|
@@ -195,12 +208,12 @@ class Formatter
 
     last_index = entities.reduce(0) do |index, entity|
       indices = entity.respond_to?(:indices) ? entity.indices : entity[:indices]
-      result << encode(chars[index...indices.first].join)
+      result << encode(text[index...indices.first])
       result << yield(entity)
       indices.last
     end
 
-    result << encode(chars[last_index..-1].join)
+    result << encode(text[last_index..-1])
 
     result.flatten.join
   end
@@ -227,23 +240,14 @@ class Formatter
     # Note: I couldn't obtain list_slug with @user/list-name format
     # for mention so this requires additional check
     special = Extractor.extract_urls_with_indices(escaped, options).map do |extract|
-      # exactly one of :url, :hashtag, :screen_name, :cashtag keys is present
-      key = (extract.keys & [:url, :hashtag, :screen_name, :cashtag]).first
-
       new_indices = [
         old_to_new_index.find_index(extract[:indices].first),
         old_to_new_index.find_index(extract[:indices].last),
       ]
 
-      has_prefix_char = [:hashtag, :screen_name, :cashtag].include?(key)
-      value_indices = [
-        new_indices.first + (has_prefix_char ? 1 : 0), # account for #, @ or $
-        new_indices.last - 1,
-      ]
-
       next extract.merge(
-        :indices => new_indices,
-        key => text[value_indices.first..value_indices.last]
+        indices: new_indices,
+        url: text[new_indices.first..new_indices.last - 1]
       )
     end
 
@@ -300,6 +304,6 @@ class Formatter
   end
 
   def mention_html(account)
-    "<span class=\"h-card\"><a href=\"#{encode(TagManager.instance.url_for(account))}\" class=\"u-url mention\">@<span>#{encode(account.username)}</span></a></span>"
+    "<span class=\"h-card\"><a href=\"#{encode(ActivityPub::TagManager.instance.url_for(account))}\" class=\"u-url mention\">@<span>#{encode(account.username)}</span></a></span>"
   end
 end

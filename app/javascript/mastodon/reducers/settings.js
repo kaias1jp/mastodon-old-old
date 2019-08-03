@@ -10,8 +10,6 @@ import uuid from '../uuid';
 const initialState = ImmutableMap({
   saved: true,
 
-  onboarded: false,
-
   skinTone: 1,
 
   home: ImmutableMap({
@@ -31,6 +29,7 @@ const initialState = ImmutableMap({
       favourite: true,
       reblog: true,
       mention: true,
+      poll: true,
     }),
 
     quickFilter: ImmutableMap({
@@ -44,6 +43,7 @@ const initialState = ImmutableMap({
       favourite: true,
       reblog: true,
       mention: true,
+      poll: true,
     }),
 
     sounds: ImmutableMap({
@@ -51,6 +51,7 @@ const initialState = ImmutableMap({
       favourite: true,
       reblog: true,
       mention: true,
+      poll: true,
     }),
   }),
 
@@ -70,10 +71,6 @@ const initialState = ImmutableMap({
     regex: ImmutableMap({
       body: '',
     }),
-  }),
-
-  trends: ImmutableMap({
-    show: true,
   }),
 });
 

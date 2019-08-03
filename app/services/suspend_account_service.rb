@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SuspendAccountService < BaseService
+  include Payloadable
+
   ASSOCIATIONS_ON_SUSPEND = %w(
     account_pins
     active_relationships
@@ -22,8 +24,6 @@ class SuspendAccountService < BaseService
     report_notes
     scheduled_statuses
     status_pins
-    stream_entries
-    subscriptions
   ).freeze
 
   ASSOCIATIONS_ON_DESTROY = %w(
@@ -41,12 +41,21 @@ class SuspendAccountService < BaseService
     @account = account
     @options = options
 
+    reject_follows!
     purge_user!
     purge_profile!
     purge_content!
   end
 
   private
+
+  def reject_follows!
+    return if @account.local? || !@account.activitypub?
+
+    ActivityPub::DeliveryWorker.push_bulk(Follow.where(account: @account)) do |follow|
+      [build_reject_json(follow), follow.target_account_id, follow.account.inbox_url]
+    end
+  end
 
   def purge_user!
     return if !@account.local? || @account.user.nil?
@@ -59,7 +68,7 @@ class SuspendAccountService < BaseService
   end
 
   def purge_content!
-    distribute_delete_actor! if @account.local?
+    distribute_delete_actor! if @account.local? && !@options[:skip_distribution]
 
     @account.statuses.reorder(nil).find_in_batches do |statuses|
       BatchedRemoveStatusService.new.call(statuses, skip_side_effects: @options[:destroy])
@@ -79,12 +88,12 @@ class SuspendAccountService < BaseService
 
     return if @options[:destroy]
 
-    @account.silenced         = false
-    @account.suspended        = true
+    @account.silenced_at      = nil
+    @account.suspended_at     = @options[:suspended_at] || Time.now.utc
     @account.locked           = false
     @account.display_name     = ''
     @account.note             = ''
-    @account.fields           = {}
+    @account.fields           = []
     @account.statuses_count   = 0
     @account.followers_count  = 0
     @account.following_count  = 0
@@ -109,15 +118,11 @@ class SuspendAccountService < BaseService
   end
 
   def delete_actor_json
-    return @delete_actor_json if defined?(@delete_actor_json)
+    @delete_actor_json ||= Oj.dump(serialize_payload(@account, ActivityPub::DeleteActorSerializer, signer: @account))
+  end
 
-    payload = ActiveModelSerializers::SerializableResource.new(
-      @account,
-      serializer: ActivityPub::DeleteActorSerializer,
-      adapter: ActivityPub::Adapter
-    ).as_json
-
-    @delete_actor_json = Oj.dump(ActivityPub::LinkedDataSignature.new(payload).sign!(@account))
+  def build_reject_json(follow)
+    Oj.dump(serialize_payload(follow, ActivityPub::RejectFollowSerializer))
   end
 
   def delivery_inboxes

@@ -450,7 +450,7 @@ RSpec.describe Account, type: :model do
   describe '.domains' do
     it 'returns domains' do
       Fabricate(:account, domain: 'domain')
-      expect(Account.domains).to match_array(['domain'])
+      expect(Account.remote.domains).to match_array(['domain'])
     end
   end
 
@@ -558,6 +558,11 @@ RSpec.describe Account, type: :model do
       expect(account).to model_have_error_on_field(:username)
     end
 
+    it 'squishes the username before validation' do
+      account = Fabricate(:account, domain: nil, username: " \u3000bob \t \u00a0 \n ")
+      expect(account.username).to eq 'bob'
+    end
+
     context 'when is local' do
       it 'is invalid if the username is not unique in case-insensitive comparison among local accounts' do
         account_1 = Fabricate(:account, username: 'the_doctor')
@@ -596,8 +601,8 @@ RSpec.describe Account, type: :model do
         expect(account).to model_have_error_on_field(:display_name)
       end
 
-      it 'is invalid if the note is longer than 160 characters' do
-        account = Fabricate.build(:account, note: Faker::Lorem.characters(161))
+      it 'is invalid if the note is longer than 500 characters' do
+        account = Fabricate.build(:account, note: Faker::Lorem.characters(501))
         account.valid?
         expect(account).to model_have_error_on_field(:note)
       end
@@ -642,8 +647,8 @@ RSpec.describe Account, type: :model do
         expect(account).not_to model_have_error_on_field(:display_name)
       end
 
-      it 'is valid even if the note is longer than 160 characters' do
-        account = Fabricate.build(:account, domain: 'domain', note: Faker::Lorem.characters(161))
+      it 'is valid even if the note is longer than 500 characters' do
+        account = Fabricate.build(:account, domain: 'domain', note: Faker::Lorem.characters(501))
         account.valid?
         expect(account).not_to model_have_error_on_field(:note)
       end
@@ -660,7 +665,7 @@ RSpec.describe Account, type: :model do
           { username: 'b', domain: 'b' },
         ].map(&method(:Fabricate).curry(2).call(:account))
 
-        expect(Account.alphabetic).to eq matches
+        expect(Account.where('id > 0').alphabetic).to eq matches
       end
     end
 
@@ -679,6 +684,23 @@ RSpec.describe Account, type: :model do
         Fabricate(:account, username: 'prefix_and_pattern')
 
         expect(Account.matches_username('pattern')).to eq [match]
+      end
+    end
+
+    describe 'by_domain_and_subdomains' do
+      it 'returns exact domain matches' do
+        account = Fabricate(:account, domain: 'example.com')
+        expect(Account.by_domain_and_subdomains('example.com')).to eq [account]
+      end
+
+      it 'returns subdomains' do
+        account = Fabricate(:account, domain: 'foo.example.com')
+        expect(Account.by_domain_and_subdomains('example.com')).to eq [account]
+      end
+
+      it 'does not return partially matching domains' do
+        account = Fabricate(:account, domain: 'grexample.com')
+        expect(Account.by_domain_and_subdomains('example.com')).to_not eq [account]
       end
     end
 
@@ -710,7 +732,7 @@ RSpec.describe Account, type: :model do
         2.times { Fabricate(:account, domain: 'example.com') }
         Fabricate(:account, domain: 'example2.com')
 
-        results = Account.by_domain_accounts
+        results = Account.where('id > 0').by_domain_accounts
         expect(results.length).to eq 2
         expect(results.first.domain).to eq 'example.com'
         expect(results.first.accounts_count).to eq 2
@@ -723,7 +745,7 @@ RSpec.describe Account, type: :model do
       it 'returns an array of accounts who do not have a domain' do
         account_1 = Fabricate(:account, domain: nil)
         account_2 = Fabricate(:account, domain: 'example.com')
-        expect(Account.local).to match_array([account_1])
+        expect(Account.where('id > 0').local).to match_array([account_1])
       end
     end
 
@@ -734,14 +756,14 @@ RSpec.describe Account, type: :model do
           matches[index] = Fabricate(:account, domain: matches[index])
         end
 
-        expect(Account.partitioned).to match_array(matches)
+        expect(Account.where('id > 0').partitioned).to match_array(matches)
       end
     end
 
     describe 'recent' do
       it 'returns a relation of accounts sorted by recent creation' do
         matches = 2.times.map { Fabricate(:account) }
-        expect(Account.recent).to match_array(matches)
+        expect(Account.where('id > 0').recent).to match_array(matches)
       end
     end
 

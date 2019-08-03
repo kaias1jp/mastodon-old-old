@@ -5,7 +5,6 @@ import Avatar from '../../../components/avatar';
 import DisplayName from '../../../components/display_name';
 import StatusContent from '../../../components/status_content';
 import MediaGallery from '../../../components/media_gallery';
-import AttachmentList from '../../../components/attachment_list';
 import { Link } from 'react-router-dom';
 import { FormattedDate, FormattedNumber } from 'react-intl';
 import Card from './card';
@@ -22,7 +21,7 @@ export default class DetailedStatus extends ImmutablePureComponent {
   };
 
   static propTypes = {
-    status: ImmutablePropTypes.map.isRequired,
+    status: ImmutablePropTypes.map,
     onOpenMedia: PropTypes.func.isRequired,
     onOpenVideo: PropTypes.func.isRequired,
     onToggleHidden: PropTypes.func.isRequired,
@@ -30,6 +29,8 @@ export default class DetailedStatus extends ImmutablePureComponent {
     onHeightChange: PropTypes.func,
     domain: PropTypes.string.isRequired,
     compact: PropTypes.bool,
+    showMedia: PropTypes.bool,
+    onToggleMediaVisibility: PropTypes.func,
   };
 
   state = {
@@ -106,21 +107,22 @@ export default class DetailedStatus extends ImmutablePureComponent {
     }
 
     if (status.get('media_attachments').size > 0) {
-      if (status.get('media_attachments').some(item => item.get('type') === 'unknown')) {
-        media = <AttachmentList media={status.get('media_attachments')} />;
-      } else if (status.getIn(['media_attachments', 0, 'type']) === 'video') {
-        const video = status.getIn(['media_attachments', 0]);
+      if (['video', 'audio'].includes(status.getIn(['media_attachments', 0, 'type']))) {
+        const attachment = status.getIn(['media_attachments', 0]);
 
         media = (
           <Video
-            preview={video.get('preview_url')}
-            src={video.get('url')}
-            alt={video.get('description')}
+            preview={attachment.get('preview_url')}
+            blurhash={attachment.get('blurhash')}
+            src={attachment.get('url')}
+            alt={attachment.get('description')}
             width={300}
             height={150}
             inline
             onOpenVideo={this.handleOpenVideo}
             sensitive={status.get('sensitive')}
+            visible={this.props.showMedia}
+            onToggleVisibility={this.props.onToggleMediaVisibility}
           />
         );
       } else {
@@ -131,6 +133,8 @@ export default class DetailedStatus extends ImmutablePureComponent {
             media={status.get('media_attachments')}
             height={300}
             onOpenMedia={this.props.onOpenMedia}
+            visible={this.props.showMedia}
+            onToggleVisibility={this.props.onToggleMediaVisibility}
           />
         );
       }
