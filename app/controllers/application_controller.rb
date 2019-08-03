@@ -11,12 +11,14 @@ class ApplicationController < ActionController::Base
   include UserTrackingConcern
   include SessionTrackingConcern
   include CacheConcern
+  include DomainControlHelper
 
   helper_method :current_account
   helper_method :current_session
   helper_method :current_theme
   helper_method :single_user_mode?
   helper_method :use_seamless_external_login?
+  helper_method :whitelist_mode?
 
   rescue_from ActionController::RoutingError, with: :not_found
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
@@ -25,7 +27,7 @@ class ApplicationController < ActionController::Base
   rescue_from Mastodon::NotPermittedError, with: :forbidden
 
   before_action :store_current_location, except: :raise_not_found, unless: :devise_controller?
-  before_action :check_user_permissions, if: :user_signed_in?
+  before_action :require_functional!, if: :user_signed_in?
 
   def raise_not_found
     raise ActionController::RoutingError, "No route matches #{params[:unmatched_route]}"
@@ -38,7 +40,7 @@ class ApplicationController < ActionController::Base
   end
 
   def authorized_fetch_mode?
-    ENV['AUTHORIZED_FETCH'] == 'true'
+    ENV['AUTHORIZED_FETCH'] == 'true' || Rails.configuration.x.whitelist_mode
   end
 
   def public_fetch_mode?
@@ -57,8 +59,8 @@ class ApplicationController < ActionController::Base
     forbidden unless current_user&.staff?
   end
 
-  def check_user_permissions
-    forbidden if current_user.disabled? || current_user.account.suspended?
+  def require_functional!
+    redirect_to edit_user_registration_path unless current_user.functional?
   end
 
   def after_sign_out_path_for(_resource_or_scope)
